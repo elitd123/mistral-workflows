@@ -1,0 +1,21 @@
+[project]
+name = "road-mask-workflow"
+version = "0.1.0"
+description = "Mistral Workflow that turns driving-simulator screenshots into binary road masks (road = white, everything else = black)"
+requires-python = ">=3.12"
+dependencies = [
+    "mistralai-workflows[mistralai]>=3.18.0",
+    "pillow>=11.0.0",
+    "httpx>=0.28.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["apps/worker/src"]
+testpaths = ["tests"]
