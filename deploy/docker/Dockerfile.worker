@@ -1,0 +1,14 @@
+FROM python:3.12-slim
+
+RUN pip install --no-cache-dir uv
+
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN uv venv /app/.venv && VIRTUAL_ENV=/app/.venv uv pip install -r requirements.txt
+
+COPY apps/worker/src ./apps/worker/src
+
+ENV PYTHONPATH=/app/apps/worker/src
+
+CMD ["/app/.venv/bin/python", "-m", "worker.entrypoints.worker"]
