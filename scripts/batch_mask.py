@@ -74,7 +74,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--input", required=True, type=Path, help="Folder with simulator screenshots")
     parser.add_argument("--output", type=Path, default=None, help="Output folder for masks (default: <input>/masks)")
-    parser.add_argument("--grid", default="64x36", help="Mask grid COLSxROWS, e.g. 64x36 (default), 48x27, 96x54")
+    parser.add_argument("--grid", default="96x54", help="Mask grid COLSxROWS, e.g. 96x54 (default, smooth edges), 64x36, 48x27")
     parser.add_argument("--refine", type=int, default=1, help="Refinement passes per image: 0, 1 (default), 2")
     parser.add_argument("--target", default=DEFAULT_TARGET, help="What should be white in the mask")
     parser.add_argument("--dry-run", action="store_true", help="Only print the batch plan, no API calls")
