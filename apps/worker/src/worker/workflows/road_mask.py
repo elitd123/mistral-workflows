@@ -23,13 +23,13 @@ SEGMENTATION_MODEL = os.environ.get("ROAD_MASK_MODEL", "mistral-large-latest")
 MAX_MODEL_IMAGE_SIDE = 1540
 MAX_PNG_BASE64_TOTAL = 1_500_000
 DEFAULT_TARGET = (
-    "the drivable road surface (asphalt), including lane markings painted on it; "
-    "exclude sidewalks, curbs, grass, gravel, buildings, vehicles, pedestrians, poles and sky"
+    "the drivable road/track surface including the sidelines, edge lines and curbs on its "
+    "boundary; exclude only grass, sky, barriers, buildings and vehicles"
 )
 GRID_CHOICES = [
-    ("64x36", "64 x 36 (16:9, recommended)"),
-    ("48x48", "48 x 48 (square)"),
-    ("96x54", "96 x 54 (fine detail)"),
+    ("96x54", "96 x 54 (fine, smooth edges, default)"),
+    ("64x36", "64 x 36 (16:9, cheaper)"),
+    ("48x48", "48 x 48 (square, cheapest)"),
 ]
 REFINE_CHOICES = [
     ("1", "1 refinement pass (recommended)"),
@@ -67,8 +67,8 @@ class RoadMaskRequest(BaseModel):
         description="Simulator screenshots as HTTPS URLs or data: URLs (base64)."
     )
     target: str = Field(default=DEFAULT_TARGET, description="What should be white in the mask.")
-    grid_cols: int = Field(default=64, ge=8, le=256)
-    grid_rows: int = Field(default=36, ge=8, le=256)
+    grid_cols: int = Field(default=96, ge=8, le=256)
+    grid_rows: int = Field(default=54, ge=8, le=256)
     refine_passes: int = Field(default=1, ge=0, le=3)
 
 
@@ -85,7 +85,7 @@ class MaskUploadForm(FormInput):
     grid_size: str = SingleChoice(
         options=GRID_CHOICES,
         description="Mask grid resolution",
-        prefilled_value="64x36",
+        prefilled_value="96x54",
     )
     refine_passes: str = SingleChoice(
         options=REFINE_CHOICES,
@@ -106,8 +106,8 @@ Respond with ONLY a JSON object, no prose, no markdown fences:
 
 Rules:
 - cells must contain exactly {rows} rows, each with exactly {cols} values, each value only 0 or 1.
-- Lane markings and road paint count as part of the road.
-- Sidewalks, curbs, grass, gravel, buildings, fences, vehicles, pedestrians, poles, shadows and sky do NOT count.
+- Lane markings, road paint, sidelines, edge lines and curbs on the track boundary all count as road.
+- Only grass, sky, barriers, buildings, fences, vehicles, pedestrians, poles and shadows do NOT count.
 - If a cell is ambiguous, output 0."""
 
 
@@ -116,7 +116,7 @@ def build_refine_prompt(target: str, cols: int, rows: int) -> str:
 
 Target: {target}
 
-Review the overlay critically: a cell marked 1 (red) must show the target in the majority of its area, a cell marked 0 must not. Remove red from cells that are sidewalk, grass, gravel, buildings, vehicles, sky, shadows, etc., and add red to cells that are road but were missed.
+Review the overlay critically: a cell marked 1 (red) must show the target in the majority of its area, a cell marked 0 must not. Sidelines, edge lines and curbs on the track boundary ARE road — keep them red. Remove red only from cells that are grass, sky, barriers, buildings, vehicles or shadows, and add red to road cells that were missed.
 
 Respond with ONLY the corrected JSON object, no prose, no markdown fences:
 {{"cols": {cols}, "rows": {rows}, "cells": <{rows} arrays of {cols} integers, each 0 or 1>}}"""
@@ -190,7 +190,8 @@ def grid_to_png(grid: GridMask, width: int, height: int) -> bytes:
         for c, value in enumerate(row):
             px[c, r] = 255 if value else 0
     if (width, height) != (grid.cols, grid.rows):
-        img = img.resize((width, height), Image.NEAREST)
+        img = img.resize((width, height), Image.BICUBIC)
+        img = img.point(lambda p: 255 if p >= 128 else 0)
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
     return buf.getvalue()
