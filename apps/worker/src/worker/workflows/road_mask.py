@@ -129,20 +129,55 @@ def _message_text(content: object) -> str:
     return str(content)
 
 
+def _coerce_cell(value: object) -> int:
+    if isinstance(value, str):
+        return 1 if value.strip() in ("1", "true", "#", "x", "X", "*") else 0
+    return 1 if value else 0
+
+
+def _resample(cells: list[list[int]], cols: int, rows: int) -> list[list[int]]:
+    src_rows = len(cells)
+    src_cols = max(len(r) for r in cells)
+    if (src_rows, src_cols) == (rows, cols):
+        return cells
+    out: list[list[int]] = []
+    for r in range(rows):
+        sr = min(src_rows - 1, round(r * (src_rows - 1) / max(rows - 1, 1)))
+        src_row = cells[sr]
+        out.append([
+            src_row[min(src_cols - 1, round(c * (src_cols - 1) / max(cols - 1, 1)))]
+            for c in range(cols)
+        ])
+    return out
+
+
 def parse_grid(text: str, cols: int, rows: int) -> GridMask:
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
         raise ValueError(f"Model returned no JSON object: {text[:200]}")
     data = json.loads(match.group(0))
-    cells = data.get("cells")
-    if not isinstance(cells, list) or len(cells) != rows:
-        raise ValueError(f"Expected {rows} rows in cells, got {len(cells) if isinstance(cells, list) else type(cells)}")
+    cells = None
+    for key in ("cells", "rows", "mask", "grid"):
+        if isinstance(data.get(key), list):
+            cells = data[key]
+            break
+    if not cells:
+        raise ValueError(f"Model JSON has no cells/rows/mask/grid list: {text[:200]}")
+    if isinstance(cells[0], (int, float, bool)):
+        flat = [_coerce_cell(v) for v in cells]
+        cells = [flat[i * cols:(i + 1) * cols] for i in range(len(flat) // cols)] or [flat]
     normalized: list[list[int]] = []
     for row in cells:
-        if not isinstance(row, list) or len(row) != cols:
-            raise ValueError(f"Expected {cols} columns per row, got {len(row) if isinstance(row, list) else type(row)}")
-        normalized.append([1 if int(v) != 0 else 0 for v in row])
-    return GridMask(cols=cols, rows=rows, cells=normalized)
+        if isinstance(row, str):
+            normalized.append([_coerce_cell(ch) for ch in row if ch not in " \t\r\n"])
+        elif isinstance(row, list):
+            normalized.append([_coerce_cell(v) for v in row])
+        else:
+            raise ValueError(f"Unexpected cell row type: {type(row)}")
+    normalized = [r for r in normalized if r]
+    if not normalized:
+        raise ValueError("Model returned an empty grid")
+    return GridMask(cols=cols, rows=rows, cells=_resample(normalized, cols, rows))
 
 
 def grid_to_png(grid: GridMask, width: int, height: int) -> bytes:
