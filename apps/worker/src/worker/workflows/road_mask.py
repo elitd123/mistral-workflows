@@ -189,6 +189,8 @@ async def fetch_image(ref: str) -> ImagePayload:
     if ref.startswith("data:"):
         header, b64 = ref.split(",", 1)
         mime = header[5:].split(";")[0] or "image/png"
+        b64 = re.sub(r"\s+", "", b64.replace(" ", "+"))
+        b64 += "=" * (-len(b64) % 4)
         raw = base64.b64decode(b64)
     else:
         import httpx
@@ -198,8 +200,16 @@ async def fetch_image(ref: str) -> ImagePayload:
             response.raise_for_status()
             raw = response.content
             mime = response.headers.get("content-type", "image/png").split(";")[0]
-    img = Image.open(io.BytesIO(raw))
-    img.load()
+    try:
+        img = Image.open(io.BytesIO(raw))
+        img.load()
+    except Exception as exc:
+        import hashlib
+
+        raise ValueError(
+            f"Undecodable image data: b64_len={len(b64)} raw_len={len(raw)} "
+            f"raw_sha256={hashlib.sha256(raw).hexdigest()[:16]} head={raw[:16].hex()} ({exc})"
+        ) from exc
     width, height = img.size
     img = img.convert("RGB")
     if max(width, height) > MAX_MODEL_IMAGE_SIDE:
