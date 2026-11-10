@@ -107,11 +107,25 @@ def test_parse_grid_extracts_json_from_prose():
     assert grid.cells == [[0, 0], [1, 1]]
 
 
-def test_parse_grid_rejects_wrong_shape():
-    with pytest.raises(ValueError):
-        parse_grid(json.dumps({"cols": 4, "rows": 4, "cells": [[0, 0], [1, 1]]}), 4, 2)
+def test_parse_grid_resamples_wrong_shape():
+    grid = parse_grid(json.dumps({"cols": 2, "rows": 2, "cells": [[0, 0], [1, 1]]}), 4, 2)
+    assert grid.cols == 4 and grid.rows == 2
+    assert all(len(r) == 4 for r in grid.cells)
+    assert all(v in (0, 1) for r in grid.cells for v in r)
+
+
+def test_parse_grid_accepts_string_rows_and_flat_list():
+    grid = parse_grid(json.dumps({"rows": ["0011", "1100"]}), 4, 2)
+    assert grid.cells == [[0, 0, 1, 1], [1, 1, 0, 0]]
+    flat = parse_grid(json.dumps({"cells": [0, 1, 1, 0, 1, 0, 0, 1]}), 4, 2)
+    assert flat.cells == [[0, 1, 1, 0], [1, 0, 0, 1]]
+
+
+def test_parse_grid_rejects_garbage():
     with pytest.raises(ValueError):
         parse_grid("no json at all", 4, 2)
+    with pytest.raises(ValueError):
+        parse_grid(json.dumps({"foo": "bar"}), 4, 2)
 
 
 def test_grid_to_png_binary_and_sized():
