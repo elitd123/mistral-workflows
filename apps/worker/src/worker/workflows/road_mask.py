@@ -1,6 +1,7 @@
 import base64
 import io
 import json
+import os
 import re
 from datetime import timedelta
 
@@ -18,7 +19,7 @@ from mistralai.workflows.conversational import (
     TextField,
 )
 
-SEGMENTATION_MODEL = "mistral-large-latest"
+SEGMENTATION_MODEL = os.environ.get("ROAD_MASK_MODEL", "mistral-large-latest")
 MAX_MODEL_IMAGE_SIDE = 1540
 MAX_PNG_BASE64_TOTAL = 1_500_000
 DEFAULT_TARGET = (
